@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>土壤成份計算器</title>
+    <style>
+        body {
+            font-family: Arial, "Microsoft JhengHei", sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 40px;
+            background-color: #f0f0f0;
+        }
+        h1 {
+            margin-bottom: 20px;
+        }
+        .container {
+            display: flex;
+            flex-direction: row;
+            align-items: flex-start;
+            gap: 80px;
+        }
+        .tube-container {
+            position: relative;
+            width: 100px;
+            height: 620px;
+        }
+        #test-tube {
+            width: 100px;
+            height: 600px;
+            border: 4px solid black;
+            border-top: none;
+            border-radius: 0 0 50px 50px;
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            background: transparent;
+            overflow: hidden;
+            box-sizing: border-box;
+        }
+        .layer {
+            position: absolute;
+            width: 100%;
+            left: 0;
+            transition: all 0.3s ease;
+        }
+        #layer1 { background-color: #634A03; } /* 砂粒 - 最深 */
+        #layer2 { background-color: #B86A06; } /* 坋粒 */
+        #layer3 { background-color: #F2C68F; } /* 黏粒 - 最淺 */
+
+        .marks-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 620px;
+            pointer-events: none;
+        }
+        .mark {
+            position: absolute;
+            width: 24px;
+            border-top: 2px solid black;
+            transform: translateY(-50%);
+        }
+        .mark.minor {
+            width: 16px;
+            border-top-width: 1px;
+        }
+
+        .controls-and-table {
+            display: flex;
+            flex-direction: column;
+            gap: 40px;
+        }
+        .controls {
+            display: flex;
+            flex-direction: column;
+            gap: 30px;
+        }
+        .slider-container {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        label {
+            font-weight: bold;
+        }
+        input[type="range"] {
+            width: 300px;
+        }
+        .value-display {
+            font-family: monospace;
+            font-size: 16px;
+        }
+
+        table {
+            border-collapse: collapse;
+            margin-top: 20px;
+            font-size: 16px;
+        }
+        th, td {
+            padding: 10px 20px;
+            border: 1px solid #333;
+            text-align: center;
+        }
+        th {
+            background-color: #ddd;
+        }
+        .color-cell {
+            width: 30px;
+        }
+    </style>
+</head>
+<body>
+    <h1>土壤成份計算器</h1>
+
+    <div class="container">
+        <div class="tube-container">
+            <div id="test-tube">
+                <div id="layer1" class="layer"></div>
+                <div id="layer2" class="layer"></div>
+                <div id="layer3" class="layer"></div>
+            </div>
+            
+            <div class="marks-overlay">
+                <!-- 壓縮刻度線 -->
+            </div>
+        </div>
+
+        <div class="controls-and-table">
+            <div class="controls">
+                <!-- 最上層控制（黏粒頂部） -->
+                <div class="slider-container">
+                    <label for="top">黏粒（黏粒與水的邊界）</label>
+                    <input type="range" id="top" min="0" max="45" value="45" step="0.5">
+                    <span class="value-display" id="top-value">45.0</span>
+                </div>
+
+                <!-- 坋粒與黏粒邊界 -->
+                <div class="slider-container">
+                    <label for="middle">坋粒（坋粒與黏粒邊界）</label>
+                    <input type="range" id="middle" min="0" max="45" value="30" step="0.5">
+                    <span class="value-display" id="middle-value">30.0</span>
+                </div>
+
+                <!-- 砂粒與坋粒邊界 -->
+                <div class="slider-container">
+                    <label for="lower">砂粒（砂粒與坋粒邊界）</label>
+                    <input type="range" id="lower" min="0" max="45" value="15" step="0.5">
+                    <span class="value-display" id="lower-value">15.0</span>
+                </div>
+            </div>
+
+            <table id="volume-table">
+                <thead>
+                    <tr>
+                        <th>土壤</th>
+                        <th></th> <!-- 顏色欄無標題 -->
+                        <th>體積</th>
+                        <th>百分比</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>黏粒</td>
+                        <td class="color-cell" style="background-color: #F2C68F;"></td>
+                        <td id="vol3">15.0</td>
+                        <td id="pct3">33.3</td>
+                    </tr>
+                    <tr>
+                        <td>坋粒</td>
+                        <td class="color-cell" style="background-color: #B86A06;"></td>
+                        <td id="vol2">15.0</td>
+                        <td id="pct2">33.3</td>
+                    </tr>
+                    <tr>
+                        <td>砂粒</td>
+                        <td class="color-cell" style="background-color: #634A03;"></td>
+                        <td id="vol1">15.0</td>
+                        <td id="pct1">33.3</td>
+                    </tr>
+                    <tr style="font-weight: bold; background-color: #eee;">
+                        <td colspan="2">總體積</td>
+                        <td id="total-vol">45.0</td>
+                        <td>100.0</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        const tubeHeight = 600;
+        const maxVolume = 45;
+        const compressedHeight = 560;
+
+        const layer1 = document.getElementById('layer1'); // 砂粒 (底)
+        const layer2 = document.getElementById('layer2'); // 坋粒
+        const layer3 = document.getElementById('layer3'); // 黏粒 (頂)
+
+        const lowerSlider = document.getElementById('lower');
+        const middleSlider = document.getElementById('middle');
+        const topSlider = document.getElementById('top');
+
+        const lowerValue = document.getElementById('lower-value');
+        const middleValue = document.getElementById('middle-value');
+        const topValue = document.getElementById('top-value');
+
+        const vol1 = document.getElementById('vol1'); // 砂粒
+        const vol2 = document.getElementById('vol2'); // 坋粒
+        const vol3 = document.getElementById('vol3'); // 黏粒
+        const pct1 = document.getElementById('pct1');
+        const pct2 = document.getElementById('pct2');
+        const pct3 = document.getElementById('pct3');
+        const totalVol = document.getElementById('total-vol');
+
+        const marksOverlay = document.querySelector('.marks-overlay');
+
+        function createOverlayMarks(side) {
+            const offset = (side === 'left') ? 20 : 20;
+
+            const scaleFactor = compressedHeight / tubeHeight;
+            const verticalOffset = (tubeHeight - compressedHeight) / 2 + 10;
+
+            for (let i = 0; i <= maxVolume; i += 5) {
+                const mark = document.createElement('div');
+                mark.className = 'mark';
+                const originalY = tubeHeight - (i / maxVolume) * tubeHeight;
+                const compressedY = originalY * scaleFactor + verticalOffset;
+                mark.style.top = `${compressedY}px`;
+                if (side === 'left') {
+                    mark.style.left = `${offset}px`;
+                } else {
+                    mark.style.right = `${offset}px`;
+                }
+                marksOverlay.appendChild(mark);
+            }
+            for (let i = 1; i < maxVolume; i++) {
+                if (i % 5 === 0) continue;
+                const mark = document.createElement('div');
+                mark.className = 'mark minor';
+                const originalY = tubeHeight - (i / maxVolume) * tubeHeight;
+                const compressedY = originalY * scaleFactor + verticalOffset;
+                mark.style.top = `${compressedY}px`;
+                if (side === 'left') {
+                    mark.style.left = `${offset + 4}px`;
+                } else {
+                    mark.style.right = `${offset + 4}px`;
+                }
+                marksOverlay.appendChild(mark);
+            }
+        }
+
+        createOverlayMarks('left');
+        createOverlayMarks('right');
+
+        function updateLayers() {
+            let b1 = parseFloat(lowerSlider.value);
+            let b2 = parseFloat(middleSlider.value);
+            let b3 = parseFloat(topSlider.value);
+
+            const values = [b1, b2, b3];
+            values.sort((a, b) => a - b);
+            [b1, b2, b3] = values;
+
+            lowerSlider.value = b1;
+            middleSlider.value = b2;
+            topSlider.value = b3;
+
+            const h1 = (b1 / maxVolume) * tubeHeight;
+            const h2 = (b2 / maxVolume) * tubeHeight;
+            const h3 = (b3 / maxVolume) * tubeHeight;
+
+            layer1.style.bottom = '0px';
+            layer1.style.height = `${h1}px`;
+
+            layer2.style.bottom = `${h1}px`;
+            layer2.style.height = `${h2 - h1}px`;
+
+            layer3.style.bottom = `${h2}px`;
+            layer3.style.height = `${h3 - h2}px`;
+
+            lowerValue.textContent = b1.toFixed(1);
+            middleValue.textContent = b2.toFixed(1);
+            topValue.textContent = b3.toFixed(1);
+
+            const v_sand = b1;          // 砂粒
+            const v_silt = b2 - b1;     // 坋粒
+            const v_clay = b3 - b2;     // 黏粒
+            const total = b3;
+
+            vol1.textContent = v_sand.toFixed(1);
+            vol2.textContent = v_silt.toFixed(1);
+            vol3.textContent = v_clay.toFixed(1);
+            totalVol.textContent = total.toFixed(1);
+
+            if (total > 0) {
+                pct1.textContent = ((v_sand / total) * 100).toFixed(1);
+                pct2.textContent = ((v_silt / total) * 100).toFixed(1);
+                pct3.textContent = ((v_clay / total) * 100).toFixed(1);
+            } else {
+                pct1.textContent = '0.0';
+                pct2.textContent = '0.0';
+                pct3.textContent = '0.0';
+            }
+        }
+
+        updateLayers();
+
+        lowerSlider.addEventListener('input', updateLayers);
+        middleSlider.addEventListener('input', updateLayers);
+        topSlider.addEventListener('input', updateLayers);
+    </script>
+</body>
+</html>
